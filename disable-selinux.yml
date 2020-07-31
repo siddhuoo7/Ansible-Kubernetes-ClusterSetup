@@ -1,0 +1,26 @@
+---
+- hosts: all
+  tasks:
+  - name: Install prerequisites
+    shell: yum install epel-release -y
+  - name: Disabling Swap on all nodes
+    shell: swapoff -a
+  - name: Yum Update
+    shell: yum update -y --skip-broken
+  - name: Disabling SElinux
+    shell: |
+     setenforce 0
+     sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/
+    ignore_errors: yes
+  - name: Disable firewalld
+    shell: |
+     systemctl disable firewalld
+     systemctl stop firewalld
+  - name: Enabling Bridge Firewall Rule
+    shell: |
+     modprobe br_netfilter
+     echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables
+  - name: Unconditionally reboot the machine with all defaults
+    reboot:
+      reboot_timeout: 3600
+

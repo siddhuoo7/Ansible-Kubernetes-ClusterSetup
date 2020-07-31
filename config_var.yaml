@@ -1,0 +1,16 @@
+Rancher_dashboard: enabled
+Cluster_Logging: disabled
+Cluster_Monitoring: disabled
+Auto_scaling: enabled
+logging_ns: logging
+monitoring_ns: monitoring
+messaging_ns: kafka
+load_balancer_ns: load-balancer
+operations_ns: operations
+deployment_ns: deployment
+slack_token: add token here
+slack_channel: "#demo"
+Loadbalancer_ip_range: 172.27.11.200-172.27.11.220
+elk_replicas: 1
+kube_network_plugin: flannel
+kong_loadBalancerIP: 172.27.11.202
