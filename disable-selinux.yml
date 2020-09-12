@@ -10,7 +10,7 @@
   - name: Disabling SElinux
     shell: |
      setenforce 0
-     sed -i --follow-symlinks 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/
+     sed -i --follow-symlinks 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/sysconfig/selinux
     ignore_errors: yes
   - name: Disable firewalld
     shell: |
