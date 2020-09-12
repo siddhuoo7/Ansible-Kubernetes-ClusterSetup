@@ -13,7 +13,7 @@
     when: hostvars[item].ansible_host is defined
     with_items: "{{ groups.all }}"
   - name: Disabling Swap on all nodes
-    shell: sudo swapoff -a
+    shell: sudo swapoff -a; sed -i '/swap/d' /etc/fstab
   - name: Set Hostname
     shell: hostnamectl set-hostname {{ inventory_hostname }}
   - name: Disable firewalld
@@ -24,11 +24,18 @@
     shell: |
      modprobe br_netfilter
      echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables
+  - name: Enable the usage of iptables
+    shell: |
+     cat >>/etc/sysctl.d/kubernetes.conf<<EOF
+     net.bridge.bridge-nf-call-ip6tables = 1
+     net.bridge.bridge-nf-call-iptables = 1
+     EOF
+     sysctl --system     
   - name: Installing Docker
     block:
       - name: Installing Docker
         shell: |
-         sudo yum install -y yum-utils
+         sudo yum install -y yum-utils device-mapper-persistent-data lvm2
          sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
          sudo yum install -y docker-ce docker-ce-cli containerd.io
          #dnf install docker-ce -y
@@ -69,11 +76,6 @@
     shell: |
      sudo systemctl enable --now kubelet
      sudo systemctl start kubelet
-  - name: Enable the usage of iptables
-    shell: |
-     sudo bash -c 'echo "net.bridge.bridge-nf-call-ip6tables = 1" > /etc/sysctl.d/k8s.conf'
-     sudo bash -c 'echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.d/k8s.conf'
-     sudo sysctl --system
 - hosts: all
   tasks:
   - name: Create docker daemon file
@@ -118,6 +120,7 @@
       - kube_network_plugin == "weave"
     shell: |
       kubectl apply -f /root/database/operations/calico.yaml
+      #kubectl --kubeconfig=/etc/kubernetes/admin.conf create -f https://docs.projectcalico.org/v3.14/manifests/calico.yaml
     when:
       - kube_network_plugin == "calico"
     shell: |
