@@ -1,6 +1,6 @@
 #!/bin/bash
 #ssh-keygen -t rsa
-# enable below line to create a passwordless ssh-key
+#enable below line to create a passwordless ssh-key
 #ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa <<< y
 echo "root@$2"
 yum install sshpass -y

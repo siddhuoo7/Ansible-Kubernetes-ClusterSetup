@@ -1,9 +1,15 @@
 ---
 - hosts: all
+  become: yes
   tasks:
-  - name: Install dnf
-    shell: sudo yum install dnf dnf-plugins-core -y
-    ignore_errors: yes
+  - name: Include vars
+    include_vars: "config_var.yaml"  
+  - name: Install a list of packages
+    yum:
+      name:
+        - dnf
+        - dnf-plugins-core
+      state: present
   - name: Add IP address of all hosts to all hosts
     lineinfile:
       dest: /etc/hosts
@@ -13,7 +19,13 @@
     when: hostvars[item].ansible_host is defined
     with_items: "{{ groups.all }}"
   - name: Disabling Swap on all nodes
-    shell: sudo swapoff -a; sed -i '/swap/d' /etc/fstab
+    shell: |
+     sudo swapoff -a
+  - name: Disable SWAP in fstab since kubernetes can't work with swap enabled (2/2)
+    replace:
+      path: /etc/fstab
+      regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+      replace: '# \1'      
   - name: Set Hostname
     shell: hostnamectl set-hostname {{ inventory_hostname }}
   - name: Disable firewalld
@@ -24,21 +36,13 @@
     shell: |
      modprobe br_netfilter
      echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables
-  - name: Enable the usage of iptables
-    shell: |
-     cat >>/etc/sysctl.d/kubernetes.conf<<EOF
-     net.bridge.bridge-nf-call-ip6tables = 1
-     net.bridge.bridge-nf-call-iptables = 1
-     EOF
-     sysctl --system     
   - name: Installing Docker
     block:
       - name: Installing Docker
         shell: |
-         sudo yum install -y yum-utils device-mapper-persistent-data lvm2
-         sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+         sudo yum install -y -q yum-utils device-mapper-persistent-data lvm2 > /dev/null 2>&1
+         sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo > /dev/null 2>&1
          sudo yum install -y docker-ce docker-ce-cli containerd.io
-         #dnf install docker-ce -y
     rescue:
       - name: Reinstalling with dnf
         shell: |
@@ -60,7 +64,7 @@
      block: |
       [kubernetes]
       name=Kubernetes
-      baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+      baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
       enabled=1
       gpgcheck=1
       repo_gpgcheck=1
@@ -76,6 +80,15 @@
     shell: |
      sudo systemctl enable --now kubelet
      sudo systemctl start kubelet
+  - name: Enable the usage of iptables
+    shell: |
+     sudo bash -c 'echo "net.bridge.bridge-nf-call-ip6tables = 1" > /etc/sysctl.d/k8s.conf'
+     sudo bash -c 'echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.d/k8s.conf'
+     cat >>/etc/sysctl.d/kubernetes.conf<<EOF
+     net.bridge.bridge-nf-call-ip6tables = 1
+     net.bridge.bridge-nf-call-iptables = 1
+     EOF
+     sudo sysctl --system
 - hosts: all
   tasks:
   - name: Create docker daemon file
@@ -84,12 +97,10 @@
     shell: |
      sudo systemctl daemon-reload
      sudo systemctl restart docker
-#  - name: Logging into docker nexus repository
-#    shell: docker login -u admin -p Ecssupport09 192.168.75.4:8082
+  - name: Logging into docker nexus repository
+    shell: docker login -u admin -p Ecssupport09 {{ nexus_ip }}
 - hosts: master-nodes
   tasks:
-  - name: Include vars
-    include_vars: "config_var.yaml"
   - name: Initializing Kubernetes cluster
     shell: |
      sudo kubeadm config images pull
@@ -112,17 +123,19 @@
   - name: "Cluster n/w "
     debug:
       msg: "The cluster network is {{ kube_network_plugin }}"        
-  - name: Install Network Add-on
+  - name: Install Network Add-on weave 
     shell: |
      export kubever=$(kubectl version | base64 | tr -d '\n')
      kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$kubever"
     when:
       - kube_network_plugin == "weave"
+  - name: Install Network Add-on calico   
     shell: |
-      kubectl apply -f /root/database/operations/calico.yaml
-      #kubectl --kubeconfig=/etc/kubernetes/admin.conf create -f https://docs.projectcalico.org/v3.14/manifests/calico.yaml
+      #kubectl apply -f /root/kube_additional/operations/calico.yaml
+      kubectl create -f https://docs.projectcalico.org/v3.11/manifests/calico.yaml
     when:
       - kube_network_plugin == "calico"
+  - name: Install Network Add-on flannel  
     shell: |
       sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
     when:
@@ -135,3 +148,33 @@
     shell: |
      cat /bin/join_token | tail -2 > out.sh
      sh out.sh
+- hosts: master-nodes
+  tasks:
+  - name:  installing helm
+    shell: |
+     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+     chmod 700 get_helm.sh
+     ./get_helm.sh
+    ignore_errors: yes
+- hosts: all
+  tasks:
+    - name: install nfs utils
+      yum:
+        name: nfs-utils
+        state: present
+    - name: check date
+      command: date
+      register: out
+    - debug: msg={{out.stdout}}
+    - pause: seconds=30
+- hosts: master-nodes
+  tasks:    
+    - name:  installing metrics-server
+      shell: |
+       helm repo add stable https://kubernetes-charts.storage.googleapis.com
+       helm repo update
+       kubectl create ns {{ operations_ns }}
+       helm install metrics-server stable/metrics-server --namespace {{ operations_ns }} --values /root/kube_additional/operations/metrics-server.values
+      ignore_errors: yes
+    
+    

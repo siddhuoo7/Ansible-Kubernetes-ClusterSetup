@@ -5,9 +5,3 @@ master-node ansible_host=masterNode
 node-1 ansible_host=nodeOne
 node-2 ansible_host=nodeTwo
 node-3 ansible_host=nodeThree
-
-[monitoring]
-host-4 ansible_host=monitoringHost
-
-[databases]
-db_host ansible_host=dbHost
