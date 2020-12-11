@@ -1,6 +1,8 @@
 {
     "insecure-registries": [
-    "192.168.75.4:8082",
-    "192.168.75.4:8083"
+    "192.168.45.27:8082",
+    "192.168.45.27:8083",    
+    "nexus.ecsdevops.local:8082",
+    "nexus.ecsdevops.local:8083"
   ]
 }

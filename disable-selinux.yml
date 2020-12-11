@@ -1,16 +1,35 @@
 ---
 - hosts: all
+  become: yes
   tasks:
   - name: Install prerequisites
-    shell: yum install epel-release -y
+    yum:
+      name: epel-release
+      state: present    
   - name: Disabling Swap on all nodes
     shell: swapoff -a
-  - name: Yum Update
-    shell: yum update -y --skip-broken
-  - name: Disabling SElinux
-    shell: |
-     setenforce 0
-     sed -i --follow-symlinks 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/sysconfig/selinux
+  - name: Disable SWAP in fstab since kubernetes can't work with swap enabled (2/2)
+    replace:
+      path: /etc/fstab
+      regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+      replace: '# \1'    
+  - name: upgrade all packages
+    yum:
+      name: '*'
+      state: latest
+  - name: Disable SELinux
+    block:
+      - name: disabling SElinux
+        selinux:
+          state: disabled
+      - name: permenent disable SElinux
+        shell: |
+         sed -i --follow-symlinks 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/sysconfig/selinux
+    rescue:              
+      - name: Disabling SElinux
+        shell: |
+         setenforce 0
+         sed -i --follow-symlinks 's/^SELINUX=enforcing/SELINUX=disabled/' /etc/sysconfig/selinux
     ignore_errors: yes
   - name: Disable firewalld
     shell: |
@@ -23,4 +42,3 @@
   - name: Unconditionally reboot the machine with all defaults
     reboot:
       reboot_timeout: 3600
-

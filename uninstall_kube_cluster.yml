@@ -1,5 +1,11 @@
 ---
+- hosts: master-nodes
+  tasks:
+  - name: detaching all node
+    shell: kubectl delete node --all
+    ignore_errors: yes
 - hosts: all
+  become: yes
   tasks:
   - name: Removing docker daemon file
     shell: rm -rf /etc/docker/daemon.json
@@ -18,14 +24,16 @@
     shell: |
      yum autoremove -y
      rm -rf ~/.kube
+     rm -rf /etc/cni /etc/kubernetes /var/lib/dockershim /var/lib/etcd /var/lib/kubelet /var/run/kubernetes ~/.kube/*
     ignore_errors: yes
   - name: Resetting iptables in master-nodes
     shell: |
      rm -rf /etc/cni/net.d
-     sudo iptables -t nat -F
-     sudo iptables -t mangle -F
-     sudo iptables -F
-     sudo iptables -X
+     iptables -F && iptables -t nat -F && iptables -X
+     iptables -t nat -X && iptables -t raw -F && iptables -t raw -X
+     iptables -t mangle -F && iptables -t mangle -X
+     #ipvsadm -C
+    ignore_errors: yes
   - name: Removing docker from all nodes
     shell: |
      docker system prune -f

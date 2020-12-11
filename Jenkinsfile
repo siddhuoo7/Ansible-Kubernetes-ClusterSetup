@@ -3,48 +3,28 @@ node{
         git credentialsId: '7cf7dbf3-4fa5-4983-8ce6-f9f7369f3094', url: 'http://192.168.75.53/root/kubernetes_cluster_ansible.git'
     }
     stage("Cleanup existing cluster"){
-      //sshagent(['kube-53']) {
       sh """
-       sed -i "s|masterNode|${masterNode}|g; s|nodeOne|${node1}|g; s|nodeTwo|${node2}|g; s|nodeThree|${node3}|g"  hosts
+      sed -i "s|masterNode|${masterNode}|g; s|nodeOne|${node1}|g; s|nodeTwo|${node2}|g; s|nodeThree|${node3}|g"  hosts
        chmod 777 ssh-setup.sh
-       ./ssh-setup.sh 'Ecssupport09' ${masterNode} ${node1} ${node2} ${node3}
-       ansible-playbook uninstall_kube_cluster.yml
+       ./ssh-setup.sh 'password' ${masterNode} ${node1} ${node2} ${node3}
+      ansible-playbook uninstall_kube_cluster.yml
       """
-       //ansiblePlaybook(credentialsId: 'PA172', inventory: 'hosts', playbook: 'uninstall_kube_cluster.yml')
-     // }
     }
     stage("kubernetes prerequisites instllation"){
        sh """
         chmod 777 ssh-setup.sh
-        ./ssh-setup.sh 'Ecssupport09' ${masterNode} ${node1} ${node2} ${node3}
-         ansible-playbook disable-selinux.yml
+        ./ssh-setup.sh 'password' ${masterNode} ${node1} ${node2} ${node3}
+        ansible-playbook disable-selinux.yml
          """
-       //ansiblePlaybook(credentialsId: 'PA172', inventory: 'hosts', playbook: 'disable-selinux.yml')
        sleep(50)
     }
     stage("Deploying kubernetes cluster"){
-       build '/3.Database'
        sh "ansible-playbook setup_kube_cluster.yml"
-     //ansiblePlaybook(credentialsId: 'PA172', inventory: 'hosts', playbook: 'setup_kube_cluster.yml')
      //ansiblePlaybook(credentialsId: 'azure', become: true, becomeUser: 'imsadmin', inventory: 'hosts', playbook: 'setup_kube_cluster.yml')
     }
+   
     stage("additional-installation"){
        sh "ansible-playbook additional-installation.yaml"
-      //ansiblePlaybook(credentialsId: 'PA172', inventory: 'hosts', playbook: 'additional-installation.yaml')
-    }
-    stage("Service Deployment"){
-      build '/discovery-service-latest'
-      build '/config-service-latest'
-      sleep(50)
-      build '/traditional-message-service-latest'
-      build '/message-service-latest'
-      build '/transform-service-latest'
-      build '/payment-service-latest'
-      build '/RPP-connector-service-latest'
-      build '/payment-response-service-latest'
-      build '/kong-gateway-config'
-      build '/scheduler-metrics'
-      build '/dashboard-ui'
     }
 
 }
